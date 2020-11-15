@@ -4,8 +4,12 @@ const { MongoClient } = require('mongodb');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
+const dotenv = require('dotenv').config();
+
 const routes = require('./routes');
 const handleErrors = require('./middlewares/errorHandler');
+const { logger } = require('./utils/logger');
+
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -38,5 +42,5 @@ app.use('/', routes);
 app.use(handleErrors);
 
 app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
+  logger.info(`Server listening at http://localhost:${port}`);
 });
