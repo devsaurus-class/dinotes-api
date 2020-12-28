@@ -11,8 +11,15 @@ exports.addNote = async (req, res, next) => {
       logger.error(`${req.originalUrl} - ${req.ip} - title is missing `);
       throw new Error('title is missing');
     }
+
+    const data = {
+      ...req.body,
+      createdAt: new Date(Date.now()).toISOString(),
+      updatedAt: new Date(Date.now()).toISOString(),
+    }
+
     // Insert data to collection
-    const result = await notesCollection.insertOne(req.body);
+    const result = await notesCollection.insertOne(data);
 
     const objResult = JSON.parse(result);
 
@@ -69,7 +76,7 @@ exports.updateNote = async (req, res, next) => {
     // update data collection
     await notesCollection.updateOne(
       { _id: ObjectId(req.params.id) },
-      { $set: { title, note } }
+      { $set: { title, note, updatedAt: new Date(Date.now()).toISOString() } }
     );
 
     logger.info(`${req.originalUrl} - ${req.ip} - Data successfully updated`);
