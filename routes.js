@@ -1,18 +1,27 @@
 /* eslint-disable no-console */
 const express = require('express');
+const passport = require('passport');
 
 const router = express.Router();
 
-const { addNote, getAllNotes, getNote, updateNote, deleteNote } = require('./handler');
+const { addNote, getAllNotes, getNote, updateNote, deleteNote, register, login } = require('./handler');
 
-router.post('/note', addNote);
+require('./utils/auth');
 
-router.get('/notes', getAllNotes);
+// notes
+router.post('/note', passport.authenticate('jwt', { session: false }), addNote);
 
-router.get('/note/:id', getNote);
+router.get('/notes', passport.authenticate('jwt', { session: false }), getAllNotes);
 
-router.put('/note/:id', updateNote);
+router.get('/note/:id', passport.authenticate('jwt', { session: false }), getNote);
 
-router.delete('/note/:id', deleteNote);
+router.put('/note/:id', passport.authenticate('jwt', { session: false }), updateNote);
+
+router.delete('/note/:id', passport.authenticate('jwt', { session: false }), deleteNote);
+
+// user
+router.post('/register', register);
+
+router.post('/login', login);
 
 module.exports = router;

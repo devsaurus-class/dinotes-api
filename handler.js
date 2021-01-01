@@ -1,12 +1,14 @@
 /* eslint-disable no-console */
 const { ObjectId } = require('mongodb');
+const passport = require('passport');
+const jwt = require('jsonwebtoken');
+const { getDb } = require('./utils/dbConnection');
 const { logger } = require('./utils/logger');
-
 exports.addNote = async (req, res, next) => {
-  const { notesCollection } = req.app.locals;
-  const { title } = req.body;
-
   try {
+    const db = getDb();
+    const { title } = req.body;
+
     if (!title) {
       logger.error(`${req.originalUrl} - ${req.ip} - title is missing `);
       throw new Error('title is missing');
@@ -16,10 +18,11 @@ exports.addNote = async (req, res, next) => {
       ...req.body,
       createdAt: new Date(Date.now()).toISOString(),
       updatedAt: new Date(Date.now()).toISOString(),
-    }
+      username: req.user.username
+    };
 
     // Insert data to collection
-    const result = await notesCollection.insertOne(data);
+    const result = await db.collection('notes').insertOne(data);
 
     const objResult = JSON.parse(result);
 
@@ -33,11 +36,10 @@ exports.addNote = async (req, res, next) => {
 };
 
 exports.getAllNotes = async (req, res, next) => {
-  const { notesCollection } = req.app.locals;
-
   try {
+    const db = getDb();
     // find all Notes
-    const result = await notesCollection.find().sort({_id:-1}).toArray();
+    const result = await db.collection('notes').find({ username: req.user.username }).sort({ _id: -1 }).toArray();
 
     logger.info(`${req.originalUrl} - ${req.ip} - All notes retrieved`);
 
@@ -49,11 +51,10 @@ exports.getAllNotes = async (req, res, next) => {
 };
 
 exports.getNote = async (req, res, next) => {
-  const { notesCollection } = req.app.locals;
-
   try {
+    const db = getDb();
     // find Notes based on id
-    const result = await notesCollection.findOne({ _id: ObjectId(req.params.id) });
+    const result = await db.collection('notes').findOne({ _id: ObjectId(req.params.id) });
 
     logger.info(`${req.originalUrl} - ${req.ip} - Notes retrieved`);
 
@@ -65,19 +66,21 @@ exports.getNote = async (req, res, next) => {
 };
 
 exports.updateNote = async (req, res, next) => {
-  const { notesCollection } = req.app.locals;
-  const { title, note } = req.body;
-
   try {
+    const { title, note } = req.body;
+    const db = getDb();
+
     if (!title) {
       logger.error(`${req.originalUrl} - ${req.ip} - title is missing `);
       throw new Error('title is missing');
     }
     // update data collection
-    await notesCollection.updateOne(
-      { _id: ObjectId(req.params.id) },
-      { $set: { title, note, updatedAt: new Date(Date.now()).toISOString() } }
-    );
+    await db
+      .collection('notes')
+      .updateOne(
+        { _id: ObjectId(req.params.id) },
+        { $set: { title, note, updatedAt: new Date(Date.now()).toISOString() } }
+      );
 
     logger.info(`${req.originalUrl} - ${req.ip} - Data successfully updated`);
 
@@ -89,17 +92,55 @@ exports.updateNote = async (req, res, next) => {
 };
 
 exports.deleteNote = async (req, res, next) => {
-  const { notesCollection } = req.app.locals;
-
   try {
+    const db = getDb();
     // delete data collection
-    await notesCollection.deleteOne({ _id: ObjectId(req.params.id) });
-    
+    await db.collection('notes').deleteOne({ _id: ObjectId(req.params.id) });
+
     logger.info(`${req.originalUrl} - ${req.ip} - Data successfully deleted`);
-    
+
     res.status(200).json('Data successfully deleted');
   } catch (error) {
     logger.error(`${req.originalUrl} - ${req.ip} - ${error} `);
     next(error);
   }
+};
+
+exports.register = async (req, res, next) => {
+  passport.authenticate('register', { session: false }, async (err, user, info) => {
+    if(user) {
+      res.status(200).json({
+        message: 'Register Successful',
+        user: user
+      });
+    } else {
+      res.status(200).json({
+        message: 'Email already registered',
+      });
+    }
+
+  })(req, res, next);
+};
+
+exports.login = async (req, res, next) => {
+  passport.authenticate('login', async (err, user, info) => {
+    try {
+      if (err || !user) {
+        const error = new Error('An error occurred.');
+
+        return next(error);
+      }
+
+      req.login(user, { session: false }, async (error) => {
+        if (error) return next(error);
+
+        const body = { _id: user._id, username: user.username };
+        const token = jwt.sign(body, 'mys3cret');
+
+        return res.json({ user: body, token });
+      });
+    } catch (error) {
+      return next(error);
+    }
+  })(req, res, next);
 };
